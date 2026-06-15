@@ -5,9 +5,12 @@
   "main": "dist/server.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
-    "build": "tsc --pretty",
+    "build": "tsc",
     "start": "node dist/server.js",
-    "dev": "tsx watch src/server.ts"
+    "dev": "tsx watch src/server.ts",
+    "pm2:start": "pm2 start ecosystem.config.cjs --env production",
+    "pm2:restart": "pm2 restart backend-maispvc --update-env",
+    "pm2:logs": "pm2 logs backend-maispvc"
   },
   "author": "Hebert Vinicius Gomes Bernardo",
   "license": "ISC",
@@ -15,6 +18,7 @@
   "devDependencies": {
     "@types/cors": "^2.8.19",
     "@types/express": "^5.0.3",
+    "@types/jsonwebtoken": "^9.0.10",
     "@types/node": "^24.3.0",
     "@types/oracledb": "^6.9.1",
     "tsx": "^4.20.5",
@@ -25,6 +29,9 @@
     "dotenv": "^17.2.1",
     "express": "^5.1.0",
     "helmet": "^8.1.0",
-    "oracledb": "^6.9.0"
+    "jsonwebtoken": "^9.0.2",
+    "modbus-serial": "^8.0.23",
+    "oracledb": "^6.9.0",
+    "sharp": "^0.34.4"
   }
 }

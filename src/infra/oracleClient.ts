@@ -79,3 +79,21 @@ export async function exec(
     return res;
   });
 }
+
+export async function execute(
+  sql: string,
+  binds: Record<string, any> = {}
+): Promise<oracledb.Result<any>> {
+  const pool = await getPool();
+  const conn = await pool.getConnection();
+
+  try {
+    const result = await conn.execute(sql, binds, {
+      autoCommit: true,
+    });
+
+    return result;
+  } finally {
+    await conn.close();
+  }
+}

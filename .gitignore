@@ -1,0 +1,14 @@
+# dependências e build (instalar/gerar no servidor)
+node_modules/
+dist/
+
+# variáveis de ambiente / segredos
+.env
+.env.*
+
+# logs
+*.log
+npm-debug.log*
+
+# sistema
+.DS_Store

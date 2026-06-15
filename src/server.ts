@@ -1,9 +1,8 @@
 // src/server.ts
 import "dotenv/config";
-import fs from "fs";
-import path from "path";
-import https from "https";
+
 import http from "http";
+import path from "path";
 import express from "express";
 import cors from "cors";
 import helmet from "helmet";
@@ -14,79 +13,75 @@ import { ENV } from "./config/env.js";
 // -------------------- Express app --------------------
 const app = express();
 
-// Middlewares básicos
 app.use(helmet({ contentSecurityPolicy: false }));
 app.use(cors());
 app.use(express.json({ limit: "10mb" }));
 app.use(express.urlencoded({ extended: true, limit: "10mb" }));
 
-// (Opcional) arquivos estáticos de uploads, se usar ENV.UPLOAD_PATH
+// Arquivos estáticos de uploads
 if (ENV.UPLOAD_PATH) {
   app.use("/uploads", express.static(path.resolve(ENV.UPLOAD_PATH)));
 }
 
 // Healthcheck
-app.get("/health", (_req, res) =>
-  res.json({ ok: true, time: new Date().toISOString() })
-);
+app.get("/health", (_req, res) => {
+  res.json({
+    ok: true,
+    env: ENV.NODE_ENV,
+    time: new Date().toISOString(),
+  });
+});
 
 // Rotas da aplicação
 app.use(routes);
 
-// Tratador de erros no final
-app.use((
-  err: any,
-  _req: express.Request,
-  res: express.Response,
-  _next: express.NextFunction
-) => {
-  console.error(err);
-  res.status(err.status ?? 500).json({
-    error: true,
-    message: err.message ?? "Erro interno",
-  });
-});
+// Tratador de erros
+app.use(
+  (
+    err: any,
+    _req: express.Request,
+    res: express.Response,
+    _next: express.NextFunction
+  ) => {
+    console.error("Erro na aplicação:", err);
 
-// -------------------- HTTPS bootstrap --------------------
-const resolveFromRoot = (p: string) =>
-  path.isAbsolute(p) ? p : path.resolve(process.cwd(), p);
-
-const certPath = resolveFromRoot(ENV.TLS_CERT_PATH);
-const keyPath = resolveFromRoot(ENV.TLS_KEY_PATH);
-
-if (!fs.existsSync(certPath) || !fs.existsSync(keyPath)) {
-  try {
-    console.log("Conteúdo da pasta dos certs:", fs.readdirSync(path.dirname(certPath)));
-  } catch {}
-  console.error("❌ Cert/Key não encontrados:", { certPath, keyPath });
-  process.exit(1);
-}
-
-const httpsServer = https.createServer(
-  {
-    cert: fs.readFileSync(certPath),
-    key: fs.readFileSync(keyPath),
-    minVersion: "TLSv1.2",
-  },
-  app
+    res.status(err.status ?? 500).json({
+      error: true,
+      message: err.message ?? "Erro interno",
+    });
+  }
 );
 
-// Ajustes de keep-alive
-httpsServer.keepAliveTimeout = 65_000;
-httpsServer.headersTimeout = 66_000;
+// -------------------- HTTP bootstrap --------------------
+const httpServer = http.createServer(app);
 
-httpsServer.listen(ENV.HTTPS_PORT, () => {
-  console.log(`✅ HTTPS na porta ${ENV.HTTPS_PORT}`);
+httpServer.keepAliveTimeout = 65_000;
+httpServer.headersTimeout = 66_000;
+
+httpServer.listen(ENV.HTTP_PORT, () => {
+  console.log(`✅ Servidor HTTP rodando na porta ${ENV.HTTP_PORT}`);
+  console.log(`🌎 Ambiente: ${ENV.NODE_ENV}`);
 });
 
-// (Opcional) HTTP → HTTPS
-if (ENV.ENABLE_HTTP_REDIRECT) {
-  const httpApp = (req: any, res: any) => {
-    const host = req.headers.host?.split(":")[0] || "localhost";
-    res.writeHead(301, { Location: `https://${host}:${ENV.HTTPS_PORT}${req.url}` });
-    res.end();
-  };
-  http.createServer(httpApp).listen(ENV.HTTP_PORT, () => {
-    console.log(`↪️ HTTP ${ENV.HTTP_PORT} → HTTPS ${ENV.HTTPS_PORT}`);
+// Encerramento limpo para PM2
+function gracefulShutdown(signal: string) {
+  console.log(`\n${signal} recebido. Encerrando servidor...`);
+
+  httpServer.close((err) => {
+    if (err) {
+      console.error("Erro ao encerrar servidor HTTP:", err);
+      process.exit(1);
+    }
+
+    console.log("✅ Servidor HTTP encerrado com sucesso.");
+    process.exit(0);
   });
+
+  setTimeout(() => {
+    console.error("Forçando encerramento após timeout.");
+    process.exit(1);
+  }, 10_000).unref();
 }
+
+process.on("SIGINT", () => gracefulShutdown("SIGINT"));
+process.on("SIGTERM", () => gracefulShutdown("SIGTERM"));
